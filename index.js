@@ -1,10 +1,13 @@
-const express = require('express');
+const express = require("express");
 const app = express();
 const path = require("path");
-const port = 8080;
+const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
 const methodOverride = require("method-override");
 
+const port = 8080;
+
+// ================= MIDDLEWARE =================
 app.use(express.urlencoded({ extended: true }));
 app.use(methodOverride("_method"));
 
@@ -12,72 +15,96 @@ app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 app.use(express.static(path.join(__dirname, "public")));
 
-let posts = [
-    {
-        id: uuidv4(),
-        username: "subhrajit",
-        content: "I love coding!",
-    },
-    {
-        id: uuidv4(),
-        username: "jitu",
-        content: "I love coding too!",
-    },
-    {
-        id: uuidv4(),
-        username: "sourav",
-        content: "I love coding also!",
-    },
-];
+// ================= FILE SETUP =================
+const DATA_FILE = path.join(__dirname, "data", "posts.json");
 
-// ✅ Render all posts
+// ================= HELPER FUNCTIONS =================
+const readPosts = () => {
+    const dir = path.dirname(DATA_FILE);
+
+    // create folder if it doesn't exist
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+
+    // create file if it doesn't exist
+    if (!fs.existsSync(DATA_FILE)) {
+        fs.writeFileSync(DATA_FILE, "[]", "utf8");
+    }
+
+    const data = fs.readFileSync(DATA_FILE, "utf8");
+    return JSON.parse(data);
+};
+
+const writePosts = (posts) => {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(posts, null, 2));
+};
+
+// ================= ROUTES =================
+
+// Show all posts
 app.get("/posts", (req, res) => {
+    const posts = readPosts();
     res.render("index", { posts });
 });
 
-// ✅ New post form
+// New post form
 app.get("/posts/new", (req, res) => {
     res.render("new");
 });
 
-// ✅ Create new post (fixed duplicate & typos)
+// Create new post
 app.post("/posts", (req, res) => {
-    let { username, content } = req.body;
-    let id = uuidv4();
-    posts.push({ id, username, content });
+    const posts = readPosts();
+    const { username, content } = req.body;
+
+    posts.push({
+        id: uuidv4(),
+        username,
+        content,
+    });
+
+    writePosts(posts);
     res.redirect("/posts");
 });
 
-// ✅ Show single post (fixed variable name error)
+// Show single post
 app.get("/posts/:id", (req, res) => {
-    let { id } = req.params;
-    let post = posts.find((p) => p.id === id);
+    const posts = readPosts();
+    const post = posts.find(p => p.id === req.params.id);
+
     res.render("show", { post });
 });
 
-// ✅ Edit form
+// Edit post form
 app.get("/posts/:id/edit", (req, res) => {
-    let { id } = req.params;
-    let post = posts.find((p) => p.id === id);
+    const posts = readPosts();
+    const post = posts.find(p => p.id === req.params.id);
+
     res.render("edit", { post });
 });
 
-// ✅ Update post content
+// Update post
 app.patch("/posts/:id", (req, res) => {
-    let { id } = req.params;
-    let newContent = req.body.content;
-    let post = posts.find((p) => p.id === id);
-    post.content = newContent;
+    const posts = readPosts();
+    const post = posts.find(p => p.id === req.params.id);
+
+    post.content = req.body.content;
+    writePosts(posts);
+
     res.redirect("/posts");
 });
 
-// ✅ Delete post
+// Delete post
 app.delete("/posts/:id", (req, res) => {
-    let { id } = req.params;
-    posts = posts.filter((p) => p.id !== id);
+    let posts = readPosts();
+    posts = posts.filter(p => p.id !== req.params.id);
+
+    writePosts(posts);
     res.redirect("/posts");
 });
 
+// ================= SERVER =================
 app.listen(port, () => {
-    console.log(`Listening on port ${port}`);
+    console.log(`✅ Server running at http://localhost:${port}/posts`);
 });
